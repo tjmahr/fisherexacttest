@@ -58,18 +58,18 @@ But I know Stan so I can compute a posterior probability of the difference
 between men and women.
 
 I think that 10% of people are left handed. I don't know where I heard this 
-number first, but it'll serve as my prior information. I messed around with `a` 
-and `b` until I got the follow prior, which is peaked around .1-ish and keeps .5
+number first, but it'll serve as my prior information. I messed around with `shape1` 
+and `shape2` until I got the follow prior, which is peaked around .1-ish and keeps .5
 and .15 as still plausible values.
 
 ```{r}
-plot(density(rbeta(100000, 9, 80)))
+plot(density(rbeta(100000, shape1 = 9, shape2 = 80)))
 ```
 
 I write out a really simple model in Stan.
 
 ```{stan, output.var = "stan_model"}
-# This knitr block also creates a `stanmodel()` object in R called `stan_model`
+# This knitr block also creates a `stan_model()` object in R called `stan_model`
 data {
   int<lower=0> n_total_1;
   int<lower=0> n_total_2;
@@ -133,6 +133,36 @@ ci(ggs, thick_ci = c(0.05, 0.95), thin_ci = c(0.025, 0.975)) %>%
 ggs_density(ggs) + facet_grid(Parameter ~ .)
 
 ggs_caterpillar(ggs, line = 0)
+```
+
+## Try it out with a regression model
+
+```{r}
+library(rstanarm)
+dfw <- tidyr::spread(df, Handedness, n)
+reg <- stan_glm(
+  cbind(left, right) ~ Sex, 
+  family = binomial, 
+  data = dfw)
+summary(reg)
+
+pp_reg <- posterior_linpred(reg) %>% 
+  as.data.frame() %>% 
+  setNames(c("female_left", "male_left")) %>% 
+  mutate(female_rate = plogis(female_left),
+         male_rate = plogis(male_left), 
+         diff = male_rate - female_rate)
+
+round(quantile(pp_reg$diff, c(.05, .1, .25, .5, .75, .9, .95)), 2)
+
+pp_reg_long <- pp_reg %>% 
+  select(male_rate, female_rate, diff) %>% 
+  tidyr::gather(variable, value)
+
+ggplot(pp_reg_long) + 
+  aes(x = value) + 
+  geom_density() + 
+  facet_grid(variable ~ .)
 ```
 
 
